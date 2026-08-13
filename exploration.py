@@ -1,4 +1,5 @@
 # %%
+from duckdb import pl
 import duckdb
 
 con = duckdb.connect()
@@ -27,22 +28,23 @@ df_motioner = con.sql("""
             CASE json_type(to_json(dokumentstatus.dokreferens.referens))
                 WHEN 'ARRAY' THEN CAST(to_json(dokumentstatus.dokreferens.referens) AS JSON[])
                 ELSE [CAST(to_json(dokumentstatus.dokreferens.referens) AS JSON)]
-            END AS refs
-        FROM read_json('datasets/json/motioner/*.json', auto_detect=true, ignore_errors=true)
+            END AS refs,
+            dokumentstatus.dokument.titel AS titel,
+            CASE json_type(to_json(dokumentstatus.dokintressent.intressent))
+                WHEN 'ARRAY' THEN CAST(to_json(dokumentstatus.dokintressent.intressent) AS JSON[])
+                ELSE [CAST(to_json(dokumentstatus.dokintressent.intressent) AS JSON)]
+            END AS intressenter,
+            dokumentstatus.dokument.dok_id AS dok_id
+        FROM read_json('datasets/json/motioner/*.json', auto_detect=true, ignore_errors=true, maximum_object_size=104857600)
     )
     SELECT
-        ref->>'referenstyp'          AS referenstyp,
-        ref->>'uppgift'              AS uppgift,
         ref->>'ref_dok_id'           AS ref_dok_id,
-        ref->>'ref_dok_typ'          AS ref_dok_typ,
-        ref->>'ref_dok_rm'           AS ref_dok_rm,
-        ref->>'ref_dok_bet'          AS ref_dok_bet,
-        ref->>'ref_dok_titel'        AS ref_dok_titel,
-        ref->>'ref_dok_subtitel'     AS ref_dok_subtitel,
-        ref->>'ref_dok_subtyp'       AS ref_dok_subtyp,
-        ref->>'ref_dok_dokumentnamn' AS ref_dok_dokumentnamn
+        dok_id,
+        titel,
+        ref2->>'intressent_id'       AS intressent_id
     FROM src,
-    UNNEST(refs) AS t(ref)
+    UNNEST(refs) AS t(ref),
+    UNNEST(intressenter) AS t2(ref2)
     
 """).pl()
 
@@ -58,26 +60,33 @@ df_propositioner = con.sql("""
             CASE json_type(to_json(dokumentstatus.dokreferens.referens))
                 WHEN 'ARRAY' THEN CAST(to_json(dokumentstatus.dokreferens.referens) AS JSON[])
                 ELSE [CAST(to_json(dokumentstatus.dokreferens.referens) AS JSON)]
-            END AS refs
+            END AS refs,
+            dokumentstatus.dokument.titel AS titel,
+            CASE json_type(to_json(dokumentstatus.dokintressent.intressent))
+                WHEN 'ARRAY' THEN CAST(to_json(dokumentstatus.dokintressent.intressent) AS JSON[])
+                ELSE [CAST(to_json(dokumentstatus.dokintressent.intressent) AS JSON)]
+            END AS intressenter,
+            dokumentstatus.dokument.dok_id AS dok_id
         FROM read_json('datasets/json/propositioner/*.json', auto_detect=true, ignore_errors=true, maximum_object_size=104857600)
     )
     SELECT
-        ref->>'referenstyp'          AS referenstyp,
-        ref->>'uppgift'              AS uppgift,
         ref->>'ref_dok_id'           AS ref_dok_id,
-        ref->>'ref_dok_typ'          AS ref_dok_typ,
-        ref->>'ref_dok_rm'           AS ref_dok_rm,
-        ref->>'ref_dok_bet'          AS ref_dok_bet,
-        ref->>'ref_dok_titel'        AS ref_dok_titel,
-        ref->>'ref_dok_subtitel'     AS ref_dok_subtitel,
-        ref->>'ref_dok_subtyp'       AS ref_dok_subtyp,
-        ref->>'ref_dok_dokumentnamn' AS ref_dok_dokumentnamn
+        dok_id,
+        titel,
+        ref2->>'intressent_id'       AS intressent_id
     FROM src,
-    UNNEST(refs) AS t(ref)
+    UNNEST(refs) AS t(ref),
+    UNNEST(intressenter) AS t2(ref2)
     
 """).pl()
 
 df_propositioner
+
+
+# %%
+
+df_dokumenter = pl.concat([df_motioner, df_propositioner])  # ty: ignore[unresolved-attribute]
+df_dokumenter
 
 # %%
 
